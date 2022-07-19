@@ -161,6 +161,57 @@ export const userCtrl = {
         }
     },
 
+    googleLogin: async (req, res) => {
+        try {
+            const {tokenId} = req.body
+
+            const verify = await client.verifyIdToken({idToken: tokenId, audience: process.env.MAILING_SERVICE_CLIENT_ID})
+            
+            const {email_verified, email, name} = verify.payload
+
+            const password = email + process.env.GOOGLE_SECRET
+
+            const passwordHash = await bcrypt.hash(password, 12)
+
+            if(!email_verified) return res.status(400).json({msg: "Email verification failed."})
+
+            const user = await userModel.findByEmail(email)
+
+            if(user){
+               
+
+                const refresh_token = createRefreshToken(email)
+                res.cookie('refreshtoken', refresh_token, {
+                    httpOnly: true,
+                    path: '/auth/refresh_token',
+                    maxAge: 7*24*60*60*1000 // 7 days
+                })
+
+                res.json({msg: "Login success!"})
+            }else{
+                const newUser = {
+                    name, email, password: passwordHash
+                }
+
+              
+                await userModel.addAccount(newUser)
+                
+                const refresh_token = createRefreshToken(email)
+                res.cookie('refreshtoken', refresh_token, {
+                    httpOnly: true,
+                    path: '/auth/refresh_token',
+                    maxAge: 7*24*60*60*1000 // 7 days
+                })
+
+                res.json({msg: "Login success!"})
+            }
+
+
+        } catch (err) {
+            return res.status(500).json({msg: err.message})
+        }
+    },
+
     
  }
 
